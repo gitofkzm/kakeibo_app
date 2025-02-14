@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出納帳</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; }
+        #ledger-app { display: flex; flex-direction: column; align-items: center; width: 100%; min-height: 100vh; }
+        #input-form { display: flex; flex-direction: column; width: calc(100% - 40px); max-width: 300px; margin: 20px auto; }
+        label { margin-bottom: 5px; display: block; }
+        input[type="date"], input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: fit-content;
+            margin: 0 auto;
+        }
+        table { width: 90%; margin: 20px auto; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        canvas { max-width: calc(100% - 40px); margin: 20px auto; }
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        @media (max-width: 768px) {
+            #input-form { width: calc(100% - 20px); }
+            table { width: 95%; }
+            canvas { max-width: calc(100% - 20px); }
+        }
+    </style>
+</head>
+<body>
+    <h1>出納帳</h1>
+    <div id="ledger-app">
+        <form id="input-form">
+            <label for="date">日付:</label>
+            <input type="date" id="date" required><br>
+            <label for="item">項目:</label>
+            <input type="text" id="item" required><br>
+            <label for="amount">金額:</label>
+            <input type="number" id="amount" value="0" required><br>
+            <button type="button" onclick="addEntry()">入力</button>
+        </form>
+        <select id="chartType" onchange="updateCharts()">
+            <option value="daily">日別</option>
+            <option value="monthly">月別</option>
+            <option value="yearly">年別</option>
+        </select>
+        <button type="button" onclick="clearData()">初期化</button>
+        <table>
+            <thead>
+                <tr><th>日付</th><th>項目</th><th>金額</th></tr>
+            </thead>
+            <tbody id="ledger-body"></tbody>
+        </table>
+        <canvas id="myChart"></canvas>
+    </div>
+    <script>
+        const ledgerData = [
+            { date: '2024-12-25', item: '給料', amount: 300000 },
+            { date: '2024-12-26', item: '食費', amount: -5000 },
+            { date: '2024-12-27', item: '光熱費', amount: -8000 },
+            { date: '2025-01-01', item: 'お年玉', amount: 20000 },
+            { date: '2025-01-05', item: '書籍代', amount: -3000 },
+            { date: '2025-01-10', item: '外食', amount: -7000 },
+            { date: '2025-01-15', item: 'ボーナス', amount: 100000 },
+            { date: '2025-01-20', item: '交通費', amount: -4000 },
+            { date: '2025-01-25', item: '映画', amount: -2000 }
+        ];
+
+        function createChart(data, title) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            if (window.myLine) {
+                window.myLine.destroy();
+            }
+            const sortedData = Object.entries(data)
+                .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+                .reduce((obj, [key, value]) => {
+                    obj[key] = value;
+                    return obj;
+                }, {});
+
+            window.myLine = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(sortedData),
+                    datasets: [{
+                        label: title,
+                        data: Object.values(sortedData),
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            const chartType = document.getElementById('chartType').value;
+            const processedData = processData(chartType);
+            createChart(processedData, getTitle(chartType));
+        }
+
+        function processData(chartType) {
+            const data = {};
+            const sortedLedgerData = [...ledgerData].sort((a, b) => new Date(a.date) - new Date(b.date));
+            sortedLedgerData.forEach(item => {
+                let key;
+                if (chartType === 'daily') {
+                    key = item.date;
+                } else if (chartType === 'monthly') {
+                    key = item.date.substring(0, 7);
+                } else {
+                    key = item.date.substring(0, 4);
+                }
+                data[key] = (data[key] || 0) + item.amount;
+            });
+            return data;
+        }
+
+        function getTitle(chartType) {
+            if (chartType === 'daily') {
+                return '日別収支';
+            } else if (chartType === 'monthly') {
+                return '月別収支';
+            } else {
+                return '年別収支';
+            }
+        }
+
+        function updateLedger() {
+            const ledgerBody = document.getElementById('ledger-body');
+            ledgerBody.innerHTML = '';
+            ledgerData.forEach(item => {
+                const row = ledgerBody.insertRow();
+                row.insertCell().textContent = item.date;
+                row.insertCell().textContent = item.item;
+                row.insertCell().textContent = item.amount;
+            });
+        }
+
+        function addEntry() {
+            const date = document.getElementById('date').value;
+            const item = document.getElementById('item').value;
+            const amount = parseInt(document.getElementById('amount').value);
+
+            ledgerData.push({ date, item, amount });
+            updateLedger();
+            updateCharts();
+        }
+
+        function clearData() {
+            ledgerData.length = 0;
+            updateLedger();
+            updateCharts();
+        }
+
+        window.addEventListener('load', () => {
+            updateCharts();
+            updateLedger();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>家計簿アプリ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .form-container {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .table {
+            background-color: white;
+        }
+        .table th {
+            background-color: #f8f9fa;
+        }
+        .btn-edit {
+            color: #0d6efd;
+            cursor: pointer;
+        }
+        .btn-delete {
+            color: #dc3545;
+            cursor: pointer;
+        }
+        .edit-mode input {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        .total-row {
+            font-weight: bold;
+            background-color: #f8f9fa;
+        }
+        .chart-container {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4 text-center">家計簿アプリ</h1>
+        
+        <div class="form-container">
+            <form method="POST" class="row g-3">
+                <div class="col-md-4">
+                    <label for="date" class="form-label">日付</label>
+                    <input type="date" class="form-control" id="date" name="date" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="income" class="form-label">収入</label>
+                    <input type="number" class="form-control" id="income" name="income" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="expense" class="form-label">支出</label>
+                    <input type="number" class="form-control" id="expense" name="expense" required>
+                </div>
+                <div class="col-12 text-center">
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>日付</th>
+                        <th>収入</th>
+                        <th>支出</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                    <tr data-id="{{ entry.id }}">
+                        <td class="date-cell">{{ entry.date.strftime('%Y-%m-%d') }}</td>
+                        <td class="income-cell">{{ "{:,}".format(entry.income) }}</td>
+                        <td class="expense-cell">{{ "{:,}".format(entry.expense) }}</td>
+                        <td>
+                            <i class="bi bi-pencil-square btn-edit me-2" onclick="editRow(this)"></i>
+                            <i class="bi bi-trash btn-delete" onclick="deleteEntry({{ entry.id }})"></i>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="total-row">
+                        <td>合計</td>
+                        <td id="total-income">{{ "{:,}".format(entries|sum(attribute='income')) }}</td>
+                        <td id="total-expense">{{ "{:,}".format(entries|sum(attribute='expense')) }}</td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="container chart-container">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <select class="form-select" id="period-select" onchange="updateChart()">
+                    <option value="daily">日別</option>
+                    <option value="monthly">月別</option>
+                    <option value="yearly">年別</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <select class="form-select" id="chart-type-select" onchange="updateChart()">
+                    <option value="line">折れ線グラフ</option>
+                    <option value="bar">棒グラフ</option>
+                </select>
+            </div>
+        </div>
+        <canvas id="incomeExpenseChart"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let chart;
+
+        function editRow(element) {
+            const row = element.closest('tr');
+            const id = row.dataset.id;
+            const dateCell = row.querySelector('.date-cell');
+            const incomeCell = row.querySelector('.income-cell');
+            const expenseCell = row.querySelector('.expense-cell');
+
+            if (row.classList.contains('edit-mode')) {
+                // Save changes
+                const formData = new FormData();
+                formData.append('date', dateCell.querySelector('input').value);
+                formData.append('income', incomeCell.querySelector('input').value);
+                formData.append('expense', expenseCell.querySelector('input').value);
+
+                fetch(`/edit/${id}`, {
+                    method: 'POST',
+                    body: formData
+                }).then(() => window.location.reload());
+            } else {
+                // Enter edit mode
+                const date = dateCell.textContent;
+                const income = incomeCell.textContent.replace(/,/g, '');
+                const expense = expenseCell.textContent.replace(/,/g, '');
+
+                dateCell.innerHTML = `<input type="date" value="${date}">`;
+                incomeCell.innerHTML = `<input type="number" value="${income}">`;
+                expenseCell.innerHTML = `<input type="number" value="${expense}">`;
+                
+                row.classList.add('edit-mode');
+                element.classList.remove('bi-pencil-square');
+                element.classList.add('bi-check-lg');
+            }
+        }
+
+        function deleteEntry(id) {
+            if (confirm('このエントリーを削除してもよろしいですか？')) {
+                window.location.href = `/delete/${id}`;
+            }
+        }
+
+        function updateChart() {
+            const period = document.getElementById('period-select').value;
+            fetch(`/graph_data?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (chart) {
+                        chart.destroy();
+                    }
+
+                    const ctx = document.getElementById('incomeExpenseChart').getContext('2d');
+                    const chartType = document.getElementById('chart-type-select').value;
+                    const chartConfig = {
+                        type: chartType,
+                        data: {
+                            labels: data.labels,
+                            datasets: [
+                                {
+                                    label: '収入',
+                                    data: data.income,
+                                    borderColor: 'rgb(75, 192, 192)',
+                                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                                    tension: 0.1,
+                                    fill: false
+                                },
+                                {
+                                    label: '支出',
+                                    data: data.expense,
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                                    tension: 0.1,
+                                    fill: false
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: '収支推移'
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    stacked: false
+                                },
+                                y: {
+                                    stacked: false,
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value.toLocaleString() + '円';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    };
+                    chart = new Chart(ctx, chartConfig);
+                });
+        }
+
+        // 初期表示時にグラフを描画
+        document.addEventListener('DOMContentLoaded', updateChart);
+    </script>
+</body>
+</html>
