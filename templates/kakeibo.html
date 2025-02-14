@@ -62,6 +62,11 @@
         <h1 class="mb-4 text-center">家計簿アプリ</h1>
         
         <div class="form-container">
+            <div class="mb-4">
+                <h5>レシート画像アップロード</h5>
+                <input type="file" class="form-control" id="receipt-image" accept="image/*" onchange="processReceiptImage(this)">
+                <div id="image-analysis-result" class="mt-2"></div>
+            </div>
             <form method="POST" class="row g-3">
                 <div class="col-md-4">
                     <label for="date" class="form-label">日付</label>
@@ -239,6 +244,65 @@
                     };
                     chart = new Chart(ctx, chartConfig);
                 });
+        }
+
+        // レシート画像を処理する関数
+        async function processReceiptImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                // 処理中の表示
+                const resultDiv = document.getElementById('image-analysis-result');
+                resultDiv.innerHTML = `
+                    <div class="alert alert-info">
+                        <h6>画像を処理中...</h6>
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                `;
+
+                const response = await fetch('/process_receipt', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('画像の処理に失敗しました');
+                }
+
+                const data = await response.json();
+
+                // 解析結果を表示
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <h6>画像解析結果:</h6>
+                        <p>日付: ${data.date}</p>
+                        <p>収入: ${data.income.toLocaleString()}円</p>
+                        <p>支出: ${data.expense.toLocaleString()}円</p>
+                        <hr>
+                        <small class="text-muted">解析詳細:<br>${data.analysis}</small>
+                    </div>
+                `;
+
+                // フォームに値を設定
+                document.getElementById('date').value = data.date;
+                document.getElementById('income').value = data.income;
+                document.getElementById('expense').value = data.expense;
+
+            } catch (error) {
+                // エラー表示
+                document.getElementById('image-analysis-result').innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6>エラー</h6>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
         }
 
         // 初期表示時にグラフを描画とフォームの初期値を設定
