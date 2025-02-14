@@ -222,7 +222,8 @@
                             },
                             scales: {
                                 x: {
-                                    stacked: false
+                                    stacked: false,
+                                    display: true
                                 },
                                 y: {
                                     stacked: false,
@@ -240,8 +241,21 @@
                 });
         }
 
-        // 初期表示時にグラフを描画
-        document.addEventListener('DOMContentLoaded', updateChart);
+        // 初期表示時にグラフを描画とフォームの初期値を設定
+        document.addEventListener('DOMContentLoaded', () => {
+            updateChart();
+            
+            // 日付フィールドに今日の日付をセット
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            document.getElementById('date').value = `${year}-${month}-${day}`;
+            
+            // 収入と支出フィールドに0をセット
+            document.getElementById('income').value = 0;
+            document.getElementById('expense').value = 0;
+        });
     </script>
 </body>
 </html>
